@@ -7,9 +7,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SSBJr.Net6.Api001.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System.Net.Http.Json;
 using SSBJr.Net6.Api001.Models;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
@@ -27,6 +29,9 @@ namespace SSBJr.Net6.Api001.Tests
                     .ConfigureServices(services =>
                     {
                         services.AddDbContext<ApiDbContext>(opt => opt.UseInMemoryDatabase("testdb"));
+                        // register channel background queue so controller's dependency is satisfied during tests
+                        services.AddSingleton<SSBJr.Net6.Api001.Services.IBackgroundQueue<SSBJr.Net6.Api001.Models.PendingUpdate>, SSBJr.Net6.Api001.Services.ChannelBackgroundQueue<SSBJr.Net6.Api001.Models.PendingUpdate>>();
+                        services.AddHostedService(provider => (SSBJr.Net6.Api001.Services.ChannelBackgroundQueue<SSBJr.Net6.Api001.Models.PendingUpdate>)provider.GetRequiredService<SSBJr.Net6.Api001.Services.IBackgroundQueue<SSBJr.Net6.Api001.Models.PendingUpdate>>());
                         // Add controllers from the main project assembly so TestServer discovers them
                         services.AddControllers()
                                 .AddApplicationPart(typeof(SSBJr.Net6.Api001.Controllers.NotificationsController).Assembly);
@@ -55,10 +60,10 @@ namespace SSBJr.Net6.Api001.Tests
             var resp = await client.PostAsJsonAsync("/api/notifications/enqueue", pending);
             resp.EnsureSuccessStatusCode();
 
-            var pendingFile = Path.Combine(dataDir, "pending_updates.log");
-            Assert.IsTrue(File.Exists(pendingFile));
-            var lines = File.ReadAllLines(pendingFile);
-            Assert.AreEqual(1, lines.Length);
+            // Channel queue is registered in tests; it will process the pending item into the in-memory DB.
+            await Task.Delay(1000);
+            var db = host.Services.GetRequiredService<ApiDbContext>();
+            Assert.IsTrue(db.Notifications.Any(n => n.ExternalId == "X"));
         }
     }
 }

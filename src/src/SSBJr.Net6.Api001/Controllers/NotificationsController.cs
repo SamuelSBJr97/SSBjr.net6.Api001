@@ -11,18 +11,18 @@ namespace SSBJr.Net6.Api001.Controllers
     {
         private readonly string _dataDir;
 
-        private readonly SSBJr.Net6.Api001.Services.IFileBackedProcessor _processor;
-        public NotificationsController(IConfiguration configuration, SSBJr.Net6.Api001.Services.IFileBackedProcessor processor)
+        private readonly SSBJr.Net6.Api001.Services.IBackgroundQueue<PendingUpdate> _queue;
+        public NotificationsController(IConfiguration configuration, SSBJr.Net6.Api001.Services.IBackgroundQueue<PendingUpdate> queue)
         {
             _dataDir = configuration.GetValue<string>("DataDirectory") ?? "data";
             FileQueue.EnsureDataDirectoryAsync(_dataDir).GetAwaiter().GetResult();
-            _processor = processor;
+            _queue = queue;
         }
 
         [HttpPost("enqueue")]
         public async Task<IActionResult> Enqueue([FromBody] PendingUpdate pending)
         {
-            await _processor.EnqueueAsync(pending);
+            await _queue.EnqueueAsync(pending);
             return Accepted(new { pending.Id, pending.EnqueuedAt });
         }
 

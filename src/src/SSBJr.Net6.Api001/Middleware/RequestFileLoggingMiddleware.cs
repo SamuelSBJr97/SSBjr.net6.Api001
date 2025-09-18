@@ -11,7 +11,7 @@ namespace SSBJr.Net6.Api001.Middleware
         private readonly ILogger<RequestFileLoggingMiddleware> _logger;
         private readonly string _dataDir;
 
-        private readonly SSBJr.Net6.Api001.Services.IFileBackedProcessor? _processor;
+        private readonly SSBJr.Net6.Api001.Services.IBackgroundQueue<SSBJr.Net6.Api001.Models.PendingUpdate>? _queue;
 
         public RequestFileLoggingMiddleware(RequestDelegate next, IConfiguration configuration, ILogger<RequestFileLoggingMiddleware> logger, IServiceProvider services)
         {
@@ -19,7 +19,7 @@ namespace SSBJr.Net6.Api001.Middleware
             _logger = logger;
             _dataDir = configuration.GetValue<string>("DataDirectory") ?? "data";
             FileQueue.EnsureDataDirectoryAsync(_dataDir).GetAwaiter().GetResult();
-            _processor = services.GetService<SSBJr.Net6.Api001.Services.IFileBackedProcessor>();
+            _queue = services.GetService<SSBJr.Net6.Api001.Services.IBackgroundQueue<SSBJr.Net6.Api001.Models.PendingUpdate>>();
         }
 
         public async Task InvokeAsync(HttpContext context)
@@ -79,8 +79,7 @@ namespace SSBJr.Net6.Api001.Middleware
 
                 if (pending != null)
                 {
-                    // prefer processor enqueue to start runner automatically
-                    if (_processor != null) await _processor.EnqueueAsync(pending);
+                    if (_queue != null) await _queue.EnqueueAsync(pending);
                     else await FileQueue.AppendLineAsync(pendingFile, pending);
                 }
             }

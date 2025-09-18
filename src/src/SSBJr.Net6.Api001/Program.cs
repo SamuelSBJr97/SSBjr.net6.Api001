@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SSBJr.Net6.Api001.Data;
 using SSBJr.Net6.Api001.Middleware;
+using SSBJr.Net6.Api001.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,8 +22,10 @@ builder.Services.AddDbContext<ApiDbContext>(options =>
             errorNumbersToAdd: null);
     }));
 
-// register background file-backed processor
-builder.Services.AddSingleton<SSBJr.Net6.Api001.Services.IFileBackedProcessor, SSBJr.Net6.Api001.Services.FileBackedTriggeredProcessor>();
+// register Channel-based background queue for PendingUpdate (starts runner only when items exist)
+builder.Services.AddSingleton<SSBJr.Net6.Api001.Services.IBackgroundQueue<SSBJr.Net6.Api001.Models.PendingUpdate>, SSBJr.Net6.Api001.Services.ChannelBackgroundQueue<SSBJr.Net6.Api001.Models.PendingUpdate>>();
+// also register as hosted service so StopAsync is invoked on shutdown
+builder.Services.AddHostedService(provider => (ChannelBackgroundQueue<SSBJr.Net6.Api001.Models.PendingUpdate>)provider.GetRequiredService<SSBJr.Net6.Api001.Services.IBackgroundQueue<SSBJr.Net6.Api001.Models.PendingUpdate>>());
 
 var app = builder.Build();
 
