@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SSBJr.Net6.Api001.Data;
+using SSBJr.Net6.Api001.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { { "DataDirectory", "data" } });
 
 // Configure EF Core with SQL Server and enable transient error resiliency
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -19,6 +21,9 @@ builder.Services.AddDbContext<ApiDbContext>(options =>
             errorNumbersToAdd: null);
     }));
 
+// register background file-backed processor
+builder.Services.AddSingleton<SSBJr.Net6.Api001.Services.IFileBackedProcessor, SSBJr.Net6.Api001.Services.FileBackedTriggeredProcessor>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -28,6 +33,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// ensure data directory exists
+var dataDir = app.Configuration.GetValue<string>("DataDirectory") ?? "data";
+if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
+
+app.UseRequestFileLogging();
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
